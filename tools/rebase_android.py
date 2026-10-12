@@ -110,7 +110,7 @@ eframe = { workspace = true, features = ["default_fonts", "wgpu", "accesskit", "
         raise RuntimeError(f"Existing Android shell: {target}")
     shutil.copytree(android_port / "apps/pdfcraft-android", target)
     cargo = target / "Cargo.toml"
-    replace_once(cargo, "version.workspace = true", f'version = "{VERSION}"')
+    replace_once(cargo, "\nversion.workspace = true\n", f'\nversion = "{VERSION}"\n')
     replace_once(cargo, 'package = "ai.storyteller.pdfcraft"', f'package = "{PACKAGE}"')
     replace_once(cargo, 'label = "PdfCraft"', 'label = "PdfCraft Community"')
     print(f"Android adaptation complete: {occurrences} file-dialog refs, {PACKAGE} v{VERSION}")
