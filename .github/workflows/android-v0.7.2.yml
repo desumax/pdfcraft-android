@@ -90,10 +90,12 @@ jobs:
           done
           git -C upstream diff --stat
 
-      - name: Rust formatting check
+      - name: Normalize format of integrated Rust sources
         shell: bash
         run: |
+          set -euo pipefail
           cd upstream
+          cargo fmt --all
           cargo fmt --all -- --check
 
       - name: Install Android NDK r27 and SDK 35
