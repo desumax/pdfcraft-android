@@ -16,7 +16,7 @@ Upstream [PR #1241](https://github.com/storytold/pdfcraft/pull/1241) contributes
 - Android-only package version `0.7.2`, independent application ID `io.github.desumax.pdfcraft`, label `PdfCraft Community`.
 - New icon generator avoids the upstream ArtCraft trademarks.
 
-## Six proposed regression fixes (exact PR commits)
+## Thirteen proposed regression fixes (exact PR commits)
 
 | PR | SHA | Regression addressed |
 | --- | --- | --- |
@@ -26,12 +26,19 @@ Upstream [PR #1241](https://github.com/storytold/pdfcraft/pull/1241) contributes
 | [#1458](https://github.com/storytold/pdfcraft/pull/1458) | `c9e02dfac77dc3ebe96ed511589703c3f7069363` | Repeated converted image/text sources not identified as duplicates |
 | [#1474](https://github.com/storytold/pdfcraft/pull/1474) | `d718fab6ec77e0fd62ef839bbb152670cf545224` | Adjacent narrow letters lost as fake-bold duplicates |
 | [#1477](https://github.com/storytold/pdfcraft/pull/1477) | `5e6d7f2c3919028a4d24772fdd280f808fed50ad` | Certain accents decoded incorrectly from TrueType without Encoding |
+| [#1512](https://github.com/storytold/pdfcraft/pull/1512) | `51bf0680801f822bd9a5e75b1f9f2e91e92011a7` | Avoid overflow/corrupt page rotation values; includes both PR commits |
+| [#1478](https://github.com/storytold/pdfcraft/pull/1478) | `a27b9008b015cef90ca3f4d821fe0f0060622080` | Honor Type 3 text painting modes without double rendering |
+| [#1499](https://github.com/storytold/pdfcraft/pull/1499) | `bae7bdebab3e78b9e733fafa932e6038bf0a44bb` | Preserve packed TIFF predictor row boundaries |
+| [#1521](https://github.com/storytold/pdfcraft/pull/1521) | `9755eac1dd16b91de87e9e492d3473138885e8ff` | Detect false-redaction rectangles written as explicit line paths |
+| [#1500](https://github.com/storytold/pdfcraft/pull/1500) | `92b1c90e6fdbf4acf5a867f36fe7302a87e3965b` | Preserve images referenced by Type 3 glyphs during extraction |
+| [#1481](https://github.com/storytold/pdfcraft/pull/1481) | `d7e1c5b23a428966448e9dee6d07c8f64b1f32ce` | Follow links under highlight annotations without bypassing link confirmations |
+| [#1480](https://github.com/storytold/pdfcraft/pull/1480) | `8b43c4b86bf330970ec8c45406d5e1b388f61e21` | Prune orphaned form fields when flattening all form fields |
 
-Each PR was reviewed for small production code scope and contains targeted regression tests. Their merged behavior and Android compilation **remain unverified**. The workflow is fail-closed on changed SHA or patch conflicts. This is a deliberately conservative subset; substantial core editing/serialization, security, printing and mobile-host PRs are excluded.
+Every selected PR has a reviewed pinned SHA and targeted regression tests. Seven additional bug fixes are included in **the same v0.7.2 candidate**, not a subsequent release. Some of the newly selected changes affect PDF serialization, redaction auditing, and rendering: these need targeted regression tests and Android document open/save testing before a public release. The workflow is fail-closed on a moved PR SHA or conflicting production patch. For two PRs, only unrelated roadmap updates are excluded; #1478's vendored-patch description is integrated separately to avoid an overlapping long-line documentation change.
 
 ## Build
 
-The [Android build workflow](.github/workflows/android-v0.7.2.yml) runs on pushes to `port/v0.7.2` and can be started manually once enabled in GitHub Actions. It clones the official upstream code, re-applies the Android port, pins and applies six bug fixes, checks formatting, checks ARM64 compilation, builds a signed APK, and stores the APK plus SHA256 in a workflow artifact.
+The [Android build workflow](.github/workflows/android-v0.7.2.yml) runs on pushes to `port/v0.7.2` and can be started manually once enabled in GitHub Actions. It clones the official upstream code, re-applies the Android port, pins and applies thirteen bug fixes, checks formatting, checks ARM64 compilation, builds a signed APK, and stores the APK plus SHA256 in a workflow artifact.
 
 **Test signing only:** A fresh ephemeral signing key is created on every run. This makes APKs installable but not updatable in place. Use a persistent, private signing key before publishing an actual release.
 
