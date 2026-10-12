@@ -105,6 +105,30 @@ eframe = { workspace = true, features = ["default_fonts", "wgpu", "accesskit", "
         '#[cfg(not(target_arch = "wasm32"))]\n        if self.system_clipboard {',
         '#[cfg(all(not(target_arch = "wasm32"), not(target_os = "android")))]\n        if self.system_clipboard {')
 
+    # PdfCraft 0.7.1 added two more clipboard paths after the v0.6.0 Android fork.
+    # Keep the in-memory copied image/file, but refuse unsupported system clipboard exports.
+    image_pick = ui / "src/image_pick.rs"
+    replace_once(image_pick,
+        '#[cfg(not(target_arch = "wasm32"))]\\n    fn put_file_on_clipboard',
+        '#[cfg(all(not(target_arch = "wasm32"), not(target_os = "android")))]\\n    fn put_file_on_clipboard')
+    replace_once(image_pick,
+        '#[cfg(target_arch = "wasm32")]\\n    fn put_file_on_clipboard',
+        '#[cfg(any(target_arch = "wasm32", target_os = "android"))]\\n    fn put_file_on_clipboard')
+    replace_once(image_pick,
+        "the web version can't put files on the clipboard yet; use Save Image As",
+        "the system clipboard is not supported on this platform; use Save Image As")
+
+    content_ui = ui / "src/content_ui.rs"
+    replace_once(content_ui,
+        '#[cfg(not(target_arch = "wasm32"))]\\n            if self.system_clipboard {',
+        '#[cfg(all(not(target_arch = "wasm32"), not(target_os = "android")))]\\n            if self.system_clipboard {')
+    replace_once(content_ui,
+        '#[cfg(target_arch = "wasm32")]\\n            if self.system_clipboard {',
+        '#[cfg(any(target_arch = "wasm32", target_os = "android"))]\\n            if self.system_clipboard {')
+    replace_once(content_ui,
+        "the web version can't put images on the clipboard yet; use Save Image As",
+        "the system clipboard is not supported on this platform; use Save Image As")
+
     target = src / "apps/pdfcraft-android"
     if target.exists():
         raise RuntimeError(f"Existing Android shell: {target}")
