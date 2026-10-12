@@ -12,6 +12,11 @@ on:
 permissions:
   contents: read
 
+# New integration commits supersede older, slower candidate builds.
+concurrency:
+  group: pdfcraft-v0.7.2-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   android-arm64:
     runs-on: ubuntu-24.04
@@ -60,7 +65,7 @@ jobs:
           set -euo pipefail
           python3 tools/rebase_android.py upstream .
           python3 tools/make_icon.py upstream/apps/pdfcraft-android
-          rm -rf upstream/docs/brand
+          python3 tools/rebrand.py upstream
 
       - name: Integrate all 13 reviewed upstream regression fixes into v0.7.2
         shell: bash
@@ -107,6 +112,24 @@ jobs:
           export AR_aarch64_linux_android=llvm-ar
           export RANLIB_aarch64_linux_android=llvm-ranlib
           cargo check -p pdfcraft-android --target aarch64-linux-android
+
+      - name: Run core rendering, editing, audit, and organizing regression tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd upstream
+          cargo test --locked --profile low-disk --lib \
+            -p pdfcraft-organize -p pdfcraft-render \
+            -p pdfcraft-audit -p pdfcraft-edit
+
+      - name: Run affected UI regression tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd upstream
+          cargo test --locked --profile low-disk -p pdfcraft-ui-egui \
+            --test accessibility --test comments \
+            --test compare --test document_links
 
       - name: Build signed ARM64 test APK
         shell: bash
