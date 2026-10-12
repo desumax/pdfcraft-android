@@ -1,0 +1,162 @@
+name: Build PdfCraft Android v0.7.2 community
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [port/v0.7.2]
+    paths:
+      - '.github/workflows/android-v0.7.2.yml'
+      - 'tools/**'
+      - 'PORTING.md'
+
+permissions:
+  contents: read
+
+jobs:
+  android-arm64:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    env:
+      CARGO_BUILD_JOBS: '2'
+      CARGO_INCREMENTAL: '0'
+      CARGO_TERM_COLOR: always
+      UPSTREAM_TAG: v0.7.1
+    steps:
+      - name: Checkout Android fork
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Rust for Android
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+          components: rustfmt
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Install native build prerequisites
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y cmake ninja-build pkg-config clang libssl-dev
+
+      - name: Clone official PdfCraft v0.7.1
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f patches/0001-pdfcraft-android-port.patch
+          test -f apps/pdfcraft-android/Cargo.toml
+          git clone --filter=blob:none https://github.com/storytold/pdfcraft.git upstream
+          git -C upstream checkout --detach "refs/tags/${UPSTREAM_TAG}"
+          grep -F 'version = "0.7.1"' upstream/Cargo.toml
+
+      - name: Port NativeActivity integration to v0.7.1
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/rebase_android.py upstream .
+          python3 tools/make_icon.py upstream/apps/pdfcraft-android
+          rm -rf upstream/docs/brand
+
+      - name: Apply six pinned upstream regression fixes
+        shell: bash
+        run: |
+          set -euo pipefail
+          patches=(
+            '1436:6c616ae9049ed87ee574415f61a66bd15b2a5839'
+            '1437:d55a5f0dcdec4d7b956c3a732fd6a165541541b3'
+            '1438:bd2b8ea925dca7a48c0ed20ea37f5d27e087a592'
+            '1458:c9e02dfac77dc3ebe96ed511589703c3f7069363'
+            '1474:d718fab6ec77e0fd62ef839bbb152670cf545224'
+            '1477:5e6d7f2c3919028a4d24772fdd280f808fed50ad'
+          )
+          for entry in "${patches[@]}"; do
+            number="${entry%%:*}"
+            expected="${entry#*:}"
+            git -C upstream fetch --no-tags origin "refs/pull/${number}/head"
+            actual="$(git -C upstream rev-parse FETCH_HEAD)"
+            if [[ "$actual" != "$expected" ]]; then
+              echo "PR #${number} changed after review; refusing unreviewed code: $actual" >&2
+              exit 1
+            fi
+            git -C upstream diff "${actual}^" "$actual" --binary > "/tmp/pdfcraft-pr-${number}.patch"
+            git -C upstream apply --check "/tmp/pdfcraft-pr-${number}.patch"
+            git -C upstream apply "/tmp/pdfcraft-pr-${number}.patch"
+            echo "Applied reviewed PR #${number} @ ${actual}"
+          done
+          git -C upstream diff --stat
+
+      - name: Rust formatting check
+        shell: bash
+        run: |
+          cd upstream
+          cargo fmt --all -- --check
+
+      - name: Install Android NDK r27 and SDK 35
+        shell: bash
+        run: |
+          set -euo pipefail
+          ANDROID_HOME="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          echo "ANDROID_HOME=$ANDROID_HOME" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$ANDROID_HOME" >> "$GITHUB_ENV"
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_HOME" --licenses >/dev/null || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_HOME" \
+            'ndk;27.2.12479018' 'platforms;android-35' 'build-tools;35.0.0'
+          NDK_ROOT="$ANDROID_HOME/ndk/27.2.12479018"
+          echo "ANDROID_NDK_ROOT=$NDK_ROOT" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK_HOME=$NDK_ROOT" >> "$GITHUB_ENV"
+          echo "$NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin" >> "$GITHUB_PATH"
+
+      - name: Install cargo-apk
+        shell: bash
+        run: cargo install cargo-apk --locked
+
+      - name: Check ARM64 code
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd upstream
+          export CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER=aarch64-linux-android26-clang
+          export CC_aarch64_linux_android=aarch64-linux-android26-clang
+          export CXX_aarch64_linux_android=aarch64-linux-android26-clang++
+          export AR_aarch64_linux_android=llvm-ar
+          export RANLIB_aarch64_linux_android=llvm-ranlib
+          cargo check -p pdfcraft-android --target aarch64-linux-android
+
+      - name: Build signed ARM64 test APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd upstream
+          export CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER=aarch64-linux-android26-clang
+          export CC_aarch64_linux_android=aarch64-linux-android26-clang
+          export CXX_aarch64_linux_android=aarch64-linux-android26-clang++
+          export AR_aarch64_linux_android=llvm-ar
+          export RANLIB_aarch64_linux_android=llvm-ranlib
+          keytool -genkeypair -noprompt -keystore "$RUNNER_TEMP/community-test.jks" \
+            -alias pdfcraft -keyalg RSA -keysize 3072 -validity 365 \
+            -storepass android -keypass android -dname 'CN=Community Test APK, O=Local'
+          export CARGO_APK_RELEASE_KEYSTORE="$RUNNER_TEMP/community-test.jks"
+          export CARGO_APK_RELEASE_KEYSTORE_PASSWORD=android
+          cargo apk build --release -p pdfcraft-android
+          mkdir -p ../dist
+          mapfile -t apks < <(find target -type f -name '*.apk' | sort)
+          if (( ${#apks[@]} != 1 )); then
+            printf 'Expected exactly one APK, found: %s\n' "${apks[*]}" >&2
+            exit 1
+          fi
+          cp "${apks[0]}" ../dist/pdfcraft-community-v0.7.2-arm64.apk
+          (cd ../dist && sha256sum *.apk > SHA256SUMS.txt)
+          ls -lh ../dist
+
+      - name: Upload APK and SHA256
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pdfcraft-community-v0.7.2-arm64
+          path: dist/
+          retention-days: 30
