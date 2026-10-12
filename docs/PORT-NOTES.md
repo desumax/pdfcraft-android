@@ -135,6 +135,12 @@ the launcher icon.
 | `crates/ui-egui/src/rfd.rs`, `rfd_android.rs` | 2 | **new** — the name `crate::rfd`: real `rfd` off-Android, host-backed stand-in on it |
 | call sites in `actions_ui, combine_ui, comment_props, content_ui, create_ui, editing, export_ui, files, fill_sign, folders_ui, marks_ui, measure_ui, ocr_ui, pickers, print_ui, sign_ui, stamps_ui, zoom_snap` | 18 | `rfd::` → `crate::rfd::`; `arboard` uses `cfg`-gated to the branch the web build already takes |
 
+## What is deliberately *not* in the patch
+
+`Cargo.lock` is excluded on purpose: it moves only because the port crate is a new workspace member,
+and `cargo` regenerates it on the first build. The patch contains only changes that matter to a reader
+— every tracked file the port touches, plus any new file that has to live inside an upstream directory.
+
 ## Not verified here
 
 The APK in Releases was not re-run on a device while publishing this repository. The fixes came from
